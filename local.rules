@@ -1,0 +1,41 @@
+# ==============================================================================
+# Snort Local Intrusion Detection Rules
+# Author: Mark Edward Brown (mark-brown-cybersecurity)
+# Description: Custom rules for lab attack simulation and false-positive tuning.
+# ==============================================================================
+
+# Rule 1: Detect SQL Injection Attempt via UNION SELECT payload in GET parameters
+alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"EXPLOIT-KIT SQL Injection Attempt - UNION SELECT"; \
+    flow:to_server,established; \
+    content:"UNION%20SELECT"; nocase; http_uri; \
+    classtype:web-application-attack; sid:1000001; rev:2;)
+
+# Tuning Notes for Rule 1:
+# - False Positive Risk: Medium. Legitimate database reporting web apps may pass 'UNION SELECT' 
+#   in reporting parameters if unencoded. 
+# - Tuning Action: If false positives occur from trusted internal developer endpoints, add 
+#   a source IP threshold or exclude specific internal IPs using 'and not ip_test'.
+
+
+# Rule 2: Detect Outbound Reverse Shell Activity (Netcat listener signature)
+alert tcp $HOME_NET any -> any [4444,5555,6666,8080] (msg:"MALWARE-CNC Outbound Reverse Shell Connection Detected"; \
+    flow:to_server,established; \
+    content:"nc -e"; distance:0; \
+    classtype:trojan-activity; sid:1000002; rev:1;)
+
+# Tuning Notes for Rule 2:
+# - False Positive Risk: Low. Standard administrative tools rarely invoke netcat with '-e' outbound.
+# - Tuning Action: Ensure authorized penetration testing source IPs are added to an exclusion list 
+#   during authorized lab exercises.
+
+
+# Rule 3: Detect SSH Brute-Force Authentication Spikes
+alert tcp any any -> $HOME_NET 22 (msg:"ATTACK-DOS Possible SSH Brute-Force Attack"; \
+    flow:to_server,established; \
+    detection_filter:track by_src, count 5, seconds 10; \
+    classtype:successful-recon-limited; sid:1000003; rev:1;)
+
+# Tuning Notes for Rule 3:
+# - False Positive Risk: Moderate. Internal IT vulnerability scanners or automated deployment 
+#   tools (Ansible) connecting rapidly can trigger this.
+# - Tuning Action: Whitelist known internal vulnerability scanner subnets or jump hosts in the rule header.
